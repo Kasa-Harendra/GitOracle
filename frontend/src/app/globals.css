@@ -1,0 +1,103 @@
+@import url("https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Google Sans", "Inter", sans-serif;
+  --font-mono: "Roboto Mono", monospace;
+}
+
+@layer base {
+  :root {
+    --background: #0D1117;
+    --background-card: #161B22;
+    --background-hover: #1f293d;
+    --border: #30363D;
+    
+    --primary: #238636;
+    --primary-hover: #2ea043;
+    
+    --secondary: #2F81F7;
+    --secondary-hover: #58a6ff;
+    
+    --text-primary: #F0F6FC;
+    --text-secondary: #C9D1D9;
+    --text-muted: #8B949E;
+    
+    --font-sans: "Google Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "Roboto Mono", "JetBrains Mono", 'Fira Code', monospace;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+  }
+}
+
+/* Custom Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* Custom Animations and Utilities */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(35, 134, 54, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(35, 134, 54, 0.4);
+  }
+}
+
+.glow-active {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+.glass-card {
+  background: rgba(22, 27, 34, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* Code Editor Custom Theme */
+.code-viewer-pre {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  background-color: #0b0e14;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  overflow-x: auto;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
