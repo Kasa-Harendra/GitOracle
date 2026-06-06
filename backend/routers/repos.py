@@ -339,3 +339,28 @@ def get_pr_summary(repo_id: str, pr_number: int, user = Depends(get_current_user
 
     return StreamingResponse(sse_generator(), media_type="text/event-stream")
 
+# --- Persistent README Storage Routes ---
+from pydantic import BaseModel
+
+class ReadmeInput(BaseModel):
+    content: str
+    readme_id: Optional[str] = None
+
+@router.get("/api/repos/{repo_id}/readmes")
+def get_saved_readmes(repo_id: str, user = Depends(get_current_user)):
+    return db.get_readmes(user["username"], repo_id)
+
+@router.post("/api/repos/{repo_id}/readmes")
+def save_generated_readme(repo_id: str, payload: ReadmeInput, user = Depends(get_current_user)):
+    return db.save_readme(user["username"], repo_id, payload.content, payload.readme_id)
+
+@router.put("/api/repos/{repo_id}/readmes/{readme_id}")
+def update_saved_readme(repo_id: str, readme_id: str, payload: ReadmeInput, user = Depends(get_current_user)):
+    return db.save_readme(user["username"], repo_id, payload.content, readme_id)
+
+@router.delete("/api/repos/{repo_id}/readmes/{readme_id}")
+def delete_saved_readme(repo_id: str, readme_id: str, user = Depends(get_current_user)):
+    success = db.delete_readme(user["username"], readme_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Readme not found")
+    return {"message": "Deleted successfully"}

@@ -5,12 +5,13 @@ import { useDashboard } from "../../../context/DashboardContext";
 
 export default function Page() {
   const {
-    githubRepos, repos, selectedRepo, selectRepository, readmePrompt, setReadmePrompt,
+    token, githubRepos, repos, selectedRepo, selectRepository, readmePrompt, setReadmePrompt,
     handleGenerateReadme, readmeLoading, generatedReadme, setGeneratedReadme
   } = useDashboard();
 
   return (
     <ReadmeGenerator 
+      token={token}
       githubRepos={githubRepos}
       repos={repos}
       selectedRepo={selectedRepo}

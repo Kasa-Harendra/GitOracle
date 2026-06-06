@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI GitHub Workspace — Core Intelligence & Semantic Dashboard",
+  title: "GitOracle — Core Intelligence & Semantic Dashboard",
   description: "A premium multi-user AI developer workspace featuring TreeRAG repo chat, README generation, file explanation, and pull request intelligence.",
 };
 

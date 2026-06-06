@@ -20,11 +20,8 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     <div className="flex-1 flex flex-col h-screen overflow-hidden bg-[#0D1117]">
       <header className="h-14 border-b border-[#30363D] bg-[#161B22] flex items-center justify-between px-6 z-10 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#161B22] to-[#1F2937] flex items-center justify-center border border-[#30363D] shadow-md shadow-[#2EA043]/10">
-            <Bot className="w-4 h-4 text-[#2EA043]" />
-          </div>
           <div>
-            <span className="font-bold text-sm text-[#F0F6FC] tracking-tight">AI GitHub Workspace</span>
+            <span className="font-bold text-sm text-[#F0F6FC] tracking-tight">GitOracle</span>
             {selectedRepo && (
               <span className="ml-2 px-2 py-0.5 text-[10px] rounded-full bg-[#21262d] border border-[#30363D] text-[#8B949E] uppercase font-mono">
                 {selectedRepo.owner}/{selectedRepo.name}
@@ -87,7 +84,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <Link
               href="/dashboard"
               className={`w-full flex items-center ${isLeftNavOpen ? "gap-2.5 px-3" : "justify-center px-1"} py-2 text-xs rounded-lg transition-all font-medium ${
-                pathname === "/dashboard" ? "bg-[#21262d] text-white border-l-2 border-[#2F81F7]" : "text-[#8B949E] hover:bg-[#1f242c]/50 hover:text-white"
+                pathname === "/dashboard" ? "bg-[#1f242c] text-white shadow-sm shadow-black/20" : "text-[#8B949E] hover:bg-[#1f242c]/50 hover:text-white"
               }`}
               title="Dashboard Overview"
             >
@@ -98,7 +95,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <Link
               href="/repositories"
               className={`w-full flex items-center ${isLeftNavOpen ? "gap-2.5 px-3" : "justify-center px-1"} py-2 text-xs rounded-lg transition-all font-medium ${
-                pathname === "/repositories" ? "bg-[#21262d] text-white border-l-2 border-emerald-400" : "text-[#8B949E] hover:bg-[#1f242c]/50 hover:text-white"
+                pathname === "/repositories" ? "bg-[#1f242c] text-white shadow-sm shadow-black/20" : "text-[#8B949E] hover:bg-[#1f242c]/50 hover:text-white"
               }`}
               title="Repositories Hub"
             >
@@ -109,7 +106,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <Link
               href="/explorer"
               className={`w-full flex items-center ${isLeftNavOpen ? "gap-2.5 px-3" : "justify-center px-1"} py-2 text-xs rounded-lg transition-all font-medium ${
-                pathname === "/explorer" ? "bg-[#21262d] text-white border-l-2 border-pink-400" : "text-[#8B949E] hover:bg-[#1f242c]/50 hover:text-white"
+                pathname === "/explorer" ? "bg-[#1f242c] text-white shadow-sm shadow-black/20" : "text-[#8B949E] hover:bg-[#1f242c]/50 hover:text-white"
               }`}
               title="Code Explorer"
             >
@@ -120,7 +117,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <Link
               href="/chat"
               className={`w-full flex items-center ${isLeftNavOpen ? "gap-2.5 px-3" : "justify-center px-1"} py-2 text-xs rounded-lg transition-all font-medium ${
-                pathname === "/chat" ? "bg-[#21262d] text-white" : "text-[#8B949E] hover:bg-[#1f242c]/50 hover:text-white"
+                pathname === "/chat" ? "bg-[#1f242c] text-white shadow-sm shadow-black/20" : "text-[#8B949E] hover:bg-[#1f242c]/50 hover:text-white"
               }`}
               title="AI RAG Chat"
             >
@@ -131,7 +128,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <Link
               href="/readme"
               className={`w-full flex items-center ${isLeftNavOpen ? "gap-2.5 px-3" : "justify-center px-1"} py-2 text-xs rounded-lg transition-all font-medium ${
-                pathname === "/readme" ? "bg-[#21262d] text-white" : "text-[#8B949E] hover:bg-[#1f242c]/50 hover:text-white"
+                pathname === "/readme" ? "bg-[#1f242c] text-white shadow-sm shadow-black/20" : "text-[#8B949E] hover:bg-[#1f242c]/50 hover:text-white"
               }`}
               title="README Generator"
             >
@@ -142,7 +139,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
             <Link
               href="/pulls"
               className={`w-full flex items-center ${isLeftNavOpen ? "gap-2.5 px-3" : "justify-center px-1"} py-2 text-xs rounded-lg transition-all font-medium ${
-                pathname === "/pulls" ? "bg-[#21262d] text-white" : "text-[#8B949E] hover:bg-[#1f242c]/50 hover:text-white"
+                pathname === "/pulls" ? "bg-[#1f242c] text-white shadow-sm shadow-black/20" : "text-[#8B949E] hover:bg-[#1f242c]/50 hover:text-white"
               }`}
               title="Pull Requests"
             >
@@ -161,7 +158,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="flex-1 flex flex-col justify-between p-4 font-sans relative">
             {isLeftNavOpen ? (
               <div className="flex-1 flex flex-col justify-center items-center text-center text-xs text-[#8B949E] p-2 mt-4 select-none">
-                <Shield className="w-8 h-8 text-[#30363D] mb-2" />
+                {/* <Shield className="w-8 h-8 text-[#30363D] mb-2" /> */}
                 <p className="text-[10px] leading-relaxed">Secure credentials symmetrically encrypted in DB memory.</p>
               </div>
             ) : (

@@ -1,7 +1,7 @@
-# AI GitHub Workspace
+# GitOracle
 
 ##  Project Overview
-**AI GitHub Workspace** is a high-performance, full-stack developer productivity platform. It deeply integrates with GitHub's API to allow users to securely browse, cache, and analyze their remote repositories. Powered by a **TreeRAG (Retrieval-Augmented Generation)** engine, the platform enables streaming AI file explanations, AI-powered chat over entire codebases, and automated PR summarizations without ever needing to locally clone the repositories.
+**GitOracle** is a high-performance, full-stack developer productivity platform. It deeply integrates with GitHub's API to allow users to securely browse, cache, and analyze their remote repositories. Powered by a **TreeRAG (Retrieval-Augmented Generation)** engine, the platform enables streaming AI file explanations, AI-powered chat over entire codebases, and automated PR summarizations without ever needing to locally clone the repositories.
 
 ##  Technology Stack
 - **Frontend**: Next.js 14+ (App Router), React, Tailwind CSS, Context API.

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { 
+import {
   Loader2, Sparkles, AlertTriangle, BookOpen, Edit3, Eye, Save, Trash2, Download, PanelLeftOpen, PanelLeftClose
 } from "lucide-react";
 import { parseMarkdownToReact } from "./shared";
@@ -17,6 +17,7 @@ interface ReadmeGeneratorProps {
   readmeLoading: boolean;
   generatedReadme: string;
   setGeneratedReadme: (val: string) => void;
+  token?: string;
 }
 
 export const ReadmeGenerator: React.FC<ReadmeGeneratorProps> = ({
@@ -29,25 +30,26 @@ export const ReadmeGenerator: React.FC<ReadmeGeneratorProps> = ({
   handleGenerateReadme,
   readmeLoading,
   generatedReadme,
-  setGeneratedReadme
+  setGeneratedReadme,
+  token
 }) => {
-  const [readmes, setReadmes] = useState<Array<{readme_id:string, repo_id:string, content:string}>>([]);
+  const [readmes, setReadmes] = useState<Array<{ readme_id: string, repo_id: string, content: string }>>([]);
   const [selectedReadmeId, setSelectedReadmeId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(240); // px
 
   // Load saved readmes for the selected repository
   React.useEffect(() => {
-    if (!selectedRepo) return;
-    fetch(`/api/readmes`, {
-      headers: { "X-User-Id": "demo_user" }
+    if (!selectedRepo || !token) return;
+    fetch(`http://127.0.0.1:8000/api/repos/${selectedRepo.id}/readmes`, {
+      headers: { "Authorization": `Bearer ${token}` }
     })
       .then(res => res.json())
       .then(data => {
-        setReadmes(data.filter((r:any) => r.repo_id === selectedRepo.id));
+        setReadmes(data || []);
       })
       .catch(console.error);
-  }, [selectedRepo]);
+  }, [selectedRepo, token]);
 
   // Resizable sidebar handlers
   const startResize = (e: React.MouseEvent) => {
@@ -66,7 +68,7 @@ export const ReadmeGenerator: React.FC<ReadmeGeneratorProps> = ({
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  const handleSelectReadme = (id:string) => {
+  const handleSelectReadme = (id: string) => {
     const r = readmes.find(r => r.readme_id === id);
     if (r) {
       setGeneratedReadme(r.content);
@@ -75,28 +77,35 @@ export const ReadmeGenerator: React.FC<ReadmeGeneratorProps> = ({
   };
 
   const handleSaveReadme = async () => {
-    if (!selectedRepo) return;
-    const payload = { repo_id: selectedRepo.id, content: generatedReadme };
+    if (!selectedRepo || !token) return;
+    const payload = { content: generatedReadme };
+    
     if (selectedReadmeId) {
-      await fetch(`/api/readmes/${selectedReadmeId}`, {
+      await fetch(`http://127.0.0.1:8000/api/repos/${selectedRepo.id}/readmes/${selectedReadmeId}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json", "X-User-Id": "demo_user" },
-        body: JSON.stringify(payload)
-      });
-    } else {
-      await fetch(`/api/readmes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-User-Id": "demo_user" },
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify(payload)
       }).then(res => res.json()).then(data => {
-        setReadmes(prev => [...prev, data]);
+        setReadmes(prev => prev.map(r => r.readme_id === selectedReadmeId ? data : r));
+      });
+    } else {
+      await fetch(`http://127.0.0.1:8000/api/repos/${selectedRepo.id}/readmes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      }).then(res => res.json()).then(data => {
+        setReadmes(prev => [data, ...prev]);
         setSelectedReadmeId(data.readme_id);
       });
     }
   };
 
-  const handleDeleteReadme = async (id:string) => {
-    await fetch(`/api/readmes/${id}`, { method: "DELETE", headers: { "X-User-Id": "demo_user" } });
+  const handleDeleteReadme = async (id: string) => {
+    if (!selectedRepo || !token) return;
+    await fetch(`http://127.0.0.1:8000/api/repos/${selectedRepo.id}/readmes/${id}`, { 
+      method: "DELETE", 
+      headers: { "Authorization": `Bearer ${token}` } 
+    });
     setReadmes(prev => prev.filter(r => r.readme_id !== id));
     if (id === selectedReadmeId) {
       setGeneratedReadme("");
@@ -104,11 +113,16 @@ export const ReadmeGenerator: React.FC<ReadmeGeneratorProps> = ({
     }
   };
 
-  const handleDownloadReadme = (id:string) => {
+  const handleDownloadReadme = (id: string) => {
+    const r = readmes.find(r => r.readme_id === id);
+    if (!r) return;
+    const blob = new Blob([r.content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = `/api/readmes/${id}/download`;
-    link.setAttribute("download", "readme.md");
+    link.href = url;
+    link.setAttribute("download", `readme-${id}.md`);
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -198,7 +212,7 @@ export const ReadmeGenerator: React.FC<ReadmeGeneratorProps> = ({
                 <h4 className="text-xs font-bold text-[#8B949E] mb-2">Saved Readmes</h4>
                 {readmes.map(r => (
                   <div key={r.readme_id} className="flex items-center justify-between py-1 border-b border-[#30363D]">
-                    <button onClick={() => handleSelectReadme(r.readme_id)} className="text-xs text-[#C9D1D9] hover:text-[#58a6ff] truncate">{r.readme_id.slice(0,8)}</button>
+                    <button onClick={() => handleSelectReadme(r.readme_id)} className="text-xs text-[#C9D1D9] hover:text-[#58a6ff] truncate">{r.readme_id.slice(0, 8)}</button>
                     <div className="flex gap-1">
                       <Save size={14} className="text-[#58a6ff] cursor-pointer" onClick={handleSaveReadme} />
                       <Trash2 size={14} className="text-[#f85149] cursor-pointer" onClick={() => handleDeleteReadme(r.readme_id)} />

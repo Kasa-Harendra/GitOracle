@@ -10,7 +10,7 @@ if __package__ is None or __package__ == "":
 from backend.routers.auth import router as auth_router
 from backend.routers.repos import router as repos_router
 
-app = FastAPI(title="AI GitHub Workspace API")
+app = FastAPI(title="GitOracle API")
 
 # Enable CORS for frontend integration
 app.add_middleware(
