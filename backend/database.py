@@ -221,3 +221,30 @@ def save_cached_tree(user_id: str, repo_id: str, branch: str, tree: List[Dict[st
 def get_cached_tree(user_id: str, repo_id: str, branch: str) -> Optional[List[Dict[str, Any]]]:
     doc = mongo_db.repo_trees.find_one({"user_id": user_id, "repo_id": repo_id, "branch": branch})
     return doc["tree"] if doc else None
+
+# README Storage Functions
+def save_readme(user_id: str, repo_id: str, content: str, readme_id: Optional[str] = None) -> Dict[str, Any]:
+    if not readme_id:
+        readme_id = str(uuid.uuid4())
+    now = time.time()
+    readme_data = {
+        "readme_id": readme_id,
+        "user_id": user_id,
+        "repo_id": repo_id,
+        "content": content,
+        "updated_at": now
+    }
+    mongo_db.readmes.update_one(
+        {"readme_id": readme_id, "user_id": user_id},
+        {"$set": readme_data},
+        upsert=True
+    )
+    readme_data.pop("_id", None)
+    return readme_data
+
+def get_readmes(user_id: str, repo_id: str) -> List[Dict[str, Any]]:
+    return list(mongo_db.readmes.find({"user_id": user_id, "repo_id": repo_id}, {"_id": 0}).sort("updated_at", -1))
+
+def delete_readme(user_id: str, readme_id: str) -> bool:
+    result = mongo_db.readmes.delete_one({"readme_id": readme_id, "user_id": user_id})
+    return result.deleted_count > 0
