@@ -7,8 +7,8 @@ export default function Page() {
   const { 
     githubRepos, githubLoading, fetchGithubRepos, token, selectedRepo, selectRepository, repos,
     isRepoPanelOpen, setIsRepoPanelOpen, activeBranch, branches, handleBranchSwitch, fileTree,
-    expandedFolders, toggleFolder, allowedExtensions, setAllowedExtensions, customIgnoredDirs,
-    setCustomIgnoredDirs, handleIndexRepo, indexing, indexingLogs, selectedFilePath, handleFileSelect
+    expandedFolders, toggleFolder, allowedExtensions, setAllowedExtensions,
+    handleIndexRepo, handleDeleteIndex, indexing, indexingLogs, selectedFilePath, handleFileSelect
   } = useDashboard();
 
   return (
@@ -30,9 +30,8 @@ export default function Page() {
       toggleFolder={toggleFolder}
       allowedExtensions={allowedExtensions}
       setAllowedExtensions={setAllowedExtensions}
-      customIgnoredDirs={customIgnoredDirs}
-      setCustomIgnoredDirs={setCustomIgnoredDirs}
       handleIndexRepo={handleIndexRepo}
+      handleDeleteIndex={handleDeleteIndex}
       indexing={indexing}
       indexingLogs={indexingLogs}
       selectedFilePath={selectedFilePath}

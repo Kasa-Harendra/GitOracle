@@ -35,7 +35,8 @@ def index_repo_task(
     access_token: str,
     concurrency: int = 4,
     file_extensions: list = None,
-    ignored_paths: list = None
+    ignored_paths: list = None,
+    selected_files: list = None
 ):
     import asyncio
     from backend.database import add_indexing_log, clear_indexing_logs, update_repo_indexing, save_repo_index
@@ -63,14 +64,22 @@ def index_repo_task(
                 access_token=access_token,
                 concurrency=concurrency,
                 file_extensions=file_extensions,
-                ignored_paths=ignored_paths
+                ignored_paths=ignored_paths,
+                selected_files=selected_files
             )
             return root_id, index_data
             
         root_id, index_data = loop.run_until_complete(run())
         
         add_indexing_log(repo_id, branch, "Codebase index compiled. Saving structures with raw contents in MongoDB...")
-        save_repo_index(repo_id, branch, index_data)
+        is_partial = bool(selected_files) or bool(file_extensions)
+        index_type = "partial" if is_partial else "full"
+        save_repo_index(repo_id, branch, index_data, config={
+            "file_extensions": file_extensions,
+            "ignored_paths": ignored_paths,
+            "selected_files": selected_files,
+            "index_type": index_type
+        })
         update_repo_indexing(repo_id, f"mongodb://repo_indexes/{repo_id}/{branch}")
         add_indexing_log(repo_id, branch, "Celery indexing task successfully completed!")
         logger.info(f"Celery indexing task successfully completed for {repo_id} (branch: {branch})")

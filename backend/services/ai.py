@@ -1,11 +1,21 @@
 import json
 from typing import Generator, Dict, Any, List, Optional
 from langchain_ollama import ChatOllama
-from backend.config import OLLAMA_BASE_URL, LARGE_MODEL, SMALL_MODEL
+from langchain_nvidia_ai_endpoints import ChatNVIDIA
+from backend.config import (
+    OLLAMA_BASE_URL, LARGE_MODEL, SMALL_MODEL, USE_OLLAMA, NVIDIA_API_KEY,
+    NVIDIA_LARGE_MODEL, NVIDIA_SMALL_MODEL
+)
 import backend.database as db
 
 # Initialize models
 def get_large_llm(streaming: bool = True):
+    if not USE_OLLAMA:
+        return ChatNVIDIA(
+            model=NVIDIA_LARGE_MODEL,
+            nvidia_api_key=NVIDIA_API_KEY,
+            temperature=0.2,
+        )
     return ChatOllama(
         base_url=OLLAMA_BASE_URL,
         model=LARGE_MODEL,
@@ -14,6 +24,12 @@ def get_large_llm(streaming: bool = True):
     )
 
 def get_small_llm(streaming: bool = True):
+    if not USE_OLLAMA:
+        return ChatNVIDIA(
+            model=NVIDIA_SMALL_MODEL,
+            nvidia_api_key=NVIDIA_API_KEY,
+            temperature=0.1,
+        )
     return ChatOllama(
         base_url=OLLAMA_BASE_URL,
         model=SMALL_MODEL,

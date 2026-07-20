@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useContext } from "react";
+import { DashboardContext } from "@/context/DashboardContext";
 import { 
   RefreshCw, Loader2, Database, X, Star, GitBranch, 
   Folder, Sliders, Sparkles, Terminal, FileCode, ChevronDown, ChevronRight
@@ -24,9 +25,8 @@ interface RepositoriesHubProps {
   toggleFolder: (path: string) => void;
   allowedExtensions: string;
   setAllowedExtensions: (exts: string) => void;
-  customIgnoredDirs: string;
-  setCustomIgnoredDirs: (dirs: string) => void;
   handleIndexRepo: () => void;
+  handleDeleteIndex: () => void;
   indexing: boolean;
   indexingLogs: any[];
   selectedFilePath: string;
@@ -51,14 +51,20 @@ export const RepositoriesHub: React.FC<RepositoriesHubProps> = ({
   toggleFolder,
   allowedExtensions,
   setAllowedExtensions,
-  customIgnoredDirs,
-  setCustomIgnoredDirs,
   handleIndexRepo,
+  handleDeleteIndex,
   indexing,
   indexingLogs,
   selectedFilePath,
   handleFileSelect
 }) => {
+  const { 
+    indexMode,
+    setIndexMode,
+    selectedFilesForIndex,
+    toggleFileSelection,
+    toggleFolderSelection
+  } = useContext(DashboardContext) as any;
 
   const [panelWidth, setPanelWidth] = React.useState<number>(380);
 
@@ -96,33 +102,61 @@ export const RepositoriesHub: React.FC<RepositoriesHubProps> = ({
             <li key={node.path} className="text-xs">
               {isDir ? (
                 <div>
-                  <span 
-                    onClick={() => toggleFolder(node.path)}
-                    className="flex items-center gap-1.5 text-[#C9D1D9] font-medium py-0.5 hover:text-white cursor-pointer select-none"
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="w-3 h-3 text-[#8B949E] shrink-0" />
-                    ) : (
-                      <ChevronRight className="w-3 h-3 text-[#8B949E] shrink-0" />
+                  <div className="flex items-center gap-1.5 py-0.5">
+                    {indexMode === "files" && (
+                      <input 
+                        type="checkbox" 
+                        onChange={() => toggleFolderSelection(node)} 
+                        checked={node.children && node.children.length > 0 && (() => {
+                          const allDescendants: string[] = [];
+                          const collect = (n: any) => {
+                            if (n.type === "file" || n.type === "blob") allDescendants.push(n.path);
+                            else if (n.children) n.children.forEach(collect);
+                          };
+                          collect(node);
+                          return allDescendants.length > 0 && allDescendants.some((p: string) => selectedFilesForIndex.includes(p));
+                        })()}
+                        className="w-3 h-3 cursor-pointer accent-[#238636]" 
+                      />
                     )}
-                    <Folder className="w-3.5 h-3.5 text-[#8B949E] shrink-0 fill-[#8B949E]/10" />
-                    <span className="truncate">{node.name}</span>
-                  </span>
+                    <span 
+                      onClick={() => toggleFolder(node.path)}
+                      className="flex items-center gap-1.5 text-[#C9D1D9] font-medium hover:text-white cursor-pointer select-none"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-3 h-3 text-[#8B949E] shrink-0" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3 text-[#8B949E] shrink-0" />
+                      )}
+                      <Folder className="w-3.5 h-3.5 text-[#8B949E] shrink-0 fill-[#8B949E]/10" />
+                      <span className="truncate">{node.name}</span>
+                    </span>
+                  </div>
                   {isExpanded && node.children && renderTree(node.children)}
                 </div>
               ) : (
-                <button
-                  onClick={() => handleFileSelect(node.path)}
-                  className={`flex items-center gap-1.5 w-full text-left py-0.5 hover:text-white transition-all select-none text-[11px] ${
-                    selectedFilePath === node.path ? "text-cyan-400 font-semibold" : "text-[#8B949E]"
-                  }`}
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                  title={node.path}
-                  data-path={node.path}
-                >
-                  <FileCode className="w-3.5 h-3.5 shrink-0" />
-                  <span className="truncate">{node.name}</span>
-                </button>
+                <div className="flex items-center gap-1.5 w-full py-0.5">
+                  {indexMode === "files" && (
+                    <input 
+                      type="checkbox" 
+                      checked={selectedFilesForIndex.includes(node.path)} 
+                      onChange={() => toggleFileSelection(node.path)} 
+                      className="w-3 h-3 cursor-pointer accent-[#238636]" 
+                    />
+                  )}
+                  <button
+                    onClick={() => handleFileSelect(node.path)}
+                    className={`flex items-center gap-1.5 w-full text-left hover:text-white transition-all select-none text-[11px] ${
+                      selectedFilePath === node.path ? "text-cyan-400 font-semibold" : "text-[#8B949E]"
+                    }`}
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                    title={node.path}
+                    data-path={node.path}
+                  >
+                    <FileCode className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">{node.name}</span>
+                  </button>
+                </div>
               )}
             </li>
           );
@@ -182,6 +216,15 @@ export const RepositoriesHub: React.FC<RepositoriesHubProps> = ({
                     <span className="text-[10px] text-[#8B949E] font-mono flex items-center gap-1">
                       <Star className="w-3 h-3 text-yellow-500 fill-yellow-500/20" /> {repo.stars ?? 0}
                     </span>
+                    {repo.last_indexed > 0 && (
+                      <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                        repo.index_config?.index_type === "partial" || repo.index_config?.selected_files 
+                          ? "bg-yellow-500/10 text-yellow-500 border border-yellow-500/30" 
+                          : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                      }`}>
+                        {repo.index_config?.index_type === "partial" || repo.index_config?.selected_files ? "Partially Indexed" : "Indexed"}
+                      </span>
+                    )}
                   </div>
                 </div>
               );
@@ -228,17 +271,28 @@ export const RepositoriesHub: React.FC<RepositoriesHubProps> = ({
 
             {/* Stats List */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-[#0D1117] border border-[#30363D] rounded-xl p-3 text-left">
-                <span className="block text-[9px] font-bold uppercase tracking-wider text-[#8B949E]">Stars</span>
+              <div className="bg-[#0D1117] border border-[#30363D] rounded-xl p-3 text-left flex flex-col justify-between">
+                <span className="block text-[9px] font-bold uppercase tracking-wider text-[#8B949E]">Stats</span>
                 <span className="text-xs font-bold text-white mt-1 font-mono flex items-center gap-1.5">
                   <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500/20" /> {selectedRepo.stars ?? 0}
                 </span>
               </div>
-              <div className="bg-[#0D1117] border border-[#30363D] rounded-xl p-3 text-left">
-                <span className="block text-[9px] font-bold uppercase tracking-wider text-[#8B949E]">Active Branch</span>
-                <span className="text-xs font-bold text-[#2ea043] mt-1 font-mono flex items-center gap-1.5">
-                  <GitBranch className="w-3.5 h-3.5 text-emerald-400" /> {activeBranch}
-                </span>
+              <div className="bg-[#0D1117] border border-[#30363D] rounded-xl p-3 text-left flex flex-col justify-between">
+                <span className="block text-[9px] font-bold uppercase tracking-wider text-[#8B949E]">Status</span>
+                <div className="mt-1 flex flex-col gap-1.5">
+                  <span className="text-xs font-bold text-[#2ea043] font-mono flex items-center gap-1.5">
+                    <GitBranch className="w-3.5 h-3.5 text-emerald-400" /> {activeBranch}
+                  </span>
+                  {selectedRepo.last_indexed > 0 && (
+                    <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded w-fit ${
+                      selectedRepo.index_config?.index_type === "partial" || selectedRepo.index_config?.selected_files 
+                        ? "bg-yellow-500/10 text-yellow-500 border border-yellow-500/30" 
+                        : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                    }`}>
+                      {selectedRepo.index_config?.index_type === "partial" || selectedRepo.index_config?.selected_files ? "Partially Indexed" : "Indexed"}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -278,23 +332,74 @@ export const RepositoriesHub: React.FC<RepositoriesHubProps> = ({
                 TreeRAG Indexing settings
               </span>
               <div className="space-y-3 bg-[#0D1117] p-3 rounded-lg border border-[#30363D] text-xs">
-                <div>
-                  <label className="block text-[8px] font-bold uppercase tracking-wider text-[#8B949E] mb-1">Extensions</label>
-                  <input
-                    type="text"
-                    value={allowedExtensions}
-                    onChange={(e) => setAllowedExtensions(e.target.value)}
-                    className="w-full bg-[#161B22] border border-[#30363D] px-2.5 py-1 rounded text-[11px] text-white focus:outline-none font-mono"
-                  />
+                
+                <div className="flex bg-[#161B22] border border-[#30363D] rounded-lg p-0.5 mb-2">
+                  <button 
+                    onClick={() => setIndexMode("extensions")}
+                    className={`flex-1 py-1 text-[10px] rounded font-semibold transition-all ${indexMode === "extensions" ? "bg-[#21262D] text-white shadow-sm" : "text-[#8B949E] hover:text-[#C9D1D9]"}`}
+                  >
+                    By Extensions
+                  </button>
+                  <button 
+                    onClick={() => setIndexMode("files")}
+                    className={`flex-1 py-1 text-[10px] rounded font-semibold transition-all ${indexMode === "files" ? "bg-[#21262D] text-white shadow-sm" : "text-[#8B949E] hover:text-[#C9D1D9]"}`}
+                  >
+                    Selected Files
+                  </button>
                 </div>
-                <button
-                  onClick={handleIndexRepo}
-                  disabled={indexing}
-                  className="w-full bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white py-1.5 rounded font-semibold text-xs transition-all cursor-pointer flex justify-center items-center gap-1"
-                >
-                  {indexing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  Index codebase
-                </button>
+
+                {indexMode === "extensions" ? (
+                  <div>
+                    <label className="block text-[8px] font-bold uppercase tracking-wider text-[#8B949E] mb-2">Extensions</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {["py", "js", "ts", "jsx", "tsx", "json", "md", "html", "css", "java", "cpp", "go", "rs", "sql"].map(ext => {
+                        const isActive = allowedExtensions.split(",").map((e: string) => e.trim()).includes(ext);
+                        return (
+                          <button
+                            key={ext}
+                            onClick={() => {
+                              const current = allowedExtensions.split(",").map((e: string) => e.trim()).filter((e: string) => e.length > 0);
+                              const newExts = isActive ? current.filter((e: string) => e !== ext) : [...current, ext];
+                              setAllowedExtensions(newExts.join(", "));
+                            }}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-mono border transition-all cursor-pointer ${
+                              isActive
+                                ? "bg-[#2F81F7]/20 border-[#2F81F7] text-[#2F81F7] font-semibold"
+                                : "bg-[#161B22] border-[#30363D] text-[#8B949E] hover:border-[#8b949e]/80"
+                            }`}
+                          >
+                            .{ext}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-[10px] text-[#8B949E]">Check specific files or folders in the directory tree above to select them for indexing.</p>
+                    <div className="mt-1.5 text-[10px] font-mono text-[#2F81F7]">
+                      {selectedFilesForIndex.length} file(s) selected
+                    </div>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleIndexRepo}
+                    disabled={indexing}
+                    className="flex-1 bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white py-1.5 rounded font-semibold text-xs transition-all cursor-pointer flex justify-center items-center gap-1"
+                  >
+                    {indexing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    Index
+                  </button>
+                  <button
+                    onClick={handleDeleteIndex}
+                    disabled={indexing}
+                    className="flex-1 bg-red-600/80 hover:bg-red-600 disabled:opacity-50 text-white py-1.5 rounded font-semibold text-xs transition-all cursor-pointer flex justify-center items-center gap-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
 

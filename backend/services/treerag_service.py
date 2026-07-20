@@ -55,7 +55,8 @@ class TreeRAGService:
         access_token: str,
         concurrency: int = 4,
         file_extensions: Optional[List[str]] = None,
-        ignored_paths: Optional[List[str]] = None
+        ignored_paths: Optional[List[str]] = None,
+        selected_files: Optional[List[str]] = None
     ) -> tuple:
         """
         Builds the tree index remotely by querying files via GithubFileLoader
@@ -83,13 +84,14 @@ class TreeRAGService:
         
         root_id, index_data = await builder.build(
             file_extensions=file_extensions,
-            ignored_paths=ignored_paths
+            ignored_paths=ignored_paths,
+            selected_files=selected_files
         )
         
         return root_id, index_data
 
     @staticmethod
-    def query_repository_stream(repo_id: str, query_str: str, username: Optional[str] = None) -> Generator[Dict[str, Any], None, None]:
+    def query_repository_stream(repo_id: str, query_str: str, branch: Optional[str] = None, username: Optional[str] = None) -> Generator[Dict[str, Any], None, None]:
         """
         Queries TreeRAG index directly from MongoDB and streams intermediate reasoning steps.
         """
@@ -101,12 +103,12 @@ class TreeRAGService:
         # Resolve active branch
         from backend.services.state import ACTIVE_BRANCHES, get_virtual_repo
         repo = get_virtual_repo(repo_id)
-        branch = ACTIVE_BRANCHES.get(repo_id) or repo.get("active_branch") or "main"
+        active_branch = branch or ACTIVE_BRANCHES.get(repo_id) or repo.get("active_branch") or "main"
 
         # Load custom DB-based retriever
         retriever = MongoTreeRAGRetriever(
             repo_id=repo_id,
-            branch=branch,
+            branch=active_branch,
             max_depth=4,
             verbose=True
         )

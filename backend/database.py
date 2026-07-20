@@ -134,17 +134,36 @@ def get_messages(session_id: str) -> List[Dict[str, Any]]:
     return list(mongo_db.messages.find({"session_id": session_id}, {"_id": 0}).sort("timestamp", 1))
 
 # TreeRAG Index Document storage functions
-def save_repo_index(repo_id: str, branch: str, index_data: Dict[str, Any]) -> None:
+def save_repo_index(repo_id: str, branch: str, index_data: Dict[str, Any], config: Optional[Dict[str, Any]] = None) -> None:
     now = time.time()
+    update_data = {"repo_id": repo_id, "branch": branch, "index_data": index_data, "created_at": now}
+    if config is not None:
+        update_data["config"] = config
+        
     mongo_db.repo_indexes.update_one(
         {"repo_id": repo_id, "branch": branch},
-        {"$set": {"repo_id": repo_id, "branch": branch, "index_data": index_data, "created_at": now}},
+        {"$set": update_data},
         upsert=True
     )
 
 def get_repo_index(repo_id: str, branch: str) -> Optional[Dict[str, Any]]:
     doc = mongo_db.repo_indexes.find_one({"repo_id": repo_id, "branch": branch})
     return doc["index_data"] if doc else None
+
+def get_repo_index_config(repo_id: str, branch: str) -> Optional[Dict[str, Any]]:
+    doc = mongo_db.repo_indexes.find_one({"repo_id": repo_id, "branch": branch})
+    return doc.get("config") if doc else None
+
+def get_any_repo_index_metadata(repo_id: str) -> Optional[Dict[str, Any]]:
+    doc = mongo_db.repo_indexes.find_one({"repo_id": repo_id}, sort=[("_id", -1)])
+    if doc:
+        return {"branch": doc.get("branch"), "config": doc.get("config")}
+    return None
+
+def delete_repo_index(repo_id: str, branch: str) -> bool:
+    result = mongo_db.repo_indexes.delete_one({"repo_id": repo_id, "branch": branch})
+    mongo_db.repositories.update_one({"id": repo_id}, {"$set": {"last_indexed": 0.0, "index_path": ""}})
+    return result.deleted_count > 0
 
 # Redis cache helpers
 def cache_set(key: str, value: str, expire_sec: int = 3600):
