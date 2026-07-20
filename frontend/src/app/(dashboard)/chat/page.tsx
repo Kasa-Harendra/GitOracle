@@ -6,7 +6,8 @@ import { useDashboard } from "../../../context/DashboardContext";
 export default function Page() {
   const {
     githubRepos, repos, selectedRepo, selectRepository, messages, chatInput, setChatInput,
-    handleSendMessage, chatLoading, traceActive, traceLogs, setTraceLogs, messagesEndRef, traceEndRef
+    handleSendMessage, chatLoading, traceActive, traceLogs, setTraceLogs, messagesEndRef, traceEndRef,
+    branches, activeBranch, handleBranchSwitch
   } = useDashboard();
 
   return (
@@ -25,6 +26,9 @@ export default function Page() {
       setTraceLogs={setTraceLogs}
       messagesEndRef={messagesEndRef}
       traceEndRef={traceEndRef}
+      branches={branches}
+      activeBranch={activeBranch}
+      handleBranchSwitch={handleBranchSwitch}
     />
   );
 }

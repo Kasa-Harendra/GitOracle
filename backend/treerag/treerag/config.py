@@ -1,14 +1,26 @@
 import os
 import tiktoken
 from langchain_ollama import ChatOllama
+from langchain_nvidia_ai_endpoints import ChatNVIDIA
+
+from backend.config import USE_OLLAMA, OLLAMA_BASE_URL, NVIDIA_API_KEY
 
 # Ollama Server Configurations
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 TREE_BUILD_MODEL = os.getenv("TREE_BUILD_MODEL", "llama3.2:3b")
 TREE_RETRIEVAL_MODEL = os.getenv("TREE_RETRIEVAL_MODEL", "gpt-oss:20b")
 
+# NVIDIA Configurations
+NVIDIA_TREE_BUILD_MODEL = os.getenv("NVIDIA_TREE_BUILD_MODEL", "meta/llama-3.2-3b-instruct")
+NVIDIA_TREE_RETRIEVAL_MODEL = os.getenv("NVIDIA_TREE_RETRIEVAL_MODEL", "meta/llama-3.1-70b-instruct")
+
 # Initialize our LLM using LangChain Ollama
 def get_tree_build_llm(temperature=0.3):
+    if not USE_OLLAMA:
+        return ChatNVIDIA(
+            model=NVIDIA_TREE_BUILD_MODEL,
+            nvidia_api_key=NVIDIA_API_KEY,
+            temperature=temperature,
+        )
     return ChatOllama(
         base_url=OLLAMA_BASE_URL,
         model=TREE_BUILD_MODEL,
@@ -17,6 +29,12 @@ def get_tree_build_llm(temperature=0.3):
 
 
 def get_tree_retrieval_llm(temperature=0.3):
+    if not USE_OLLAMA:
+        return ChatNVIDIA(
+            model=NVIDIA_TREE_RETRIEVAL_MODEL,
+            nvidia_api_key=NVIDIA_API_KEY,
+            temperature=temperature,
+        )
     return ChatOllama(
         base_url=OLLAMA_BASE_URL,
         model=TREE_RETRIEVAL_MODEL,

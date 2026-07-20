@@ -33,6 +33,9 @@ def list_repos(sync: bool = False, user = Depends(get_current_user)):
         cached_repos = db.get_cached_repos(user["username"])
         if cached_repos is not None:
             return cached_repos
+            
+    old_cached_repos = db.get_cached_repos(user["username"]) or []
+    old_pushed_map = {r["id"]: r.get("pushed_at") for r in old_cached_repos}
 
     import urllib.request
     import json
@@ -59,6 +62,7 @@ def list_repos(sync: bool = False, user = Depends(get_current_user)):
                 "description": gr.get("description", ""),
                 "is_private": gr.get("private", False),
                 "clone_url": gr["clone_url"],
+                "pushed_at": gr.get("pushed_at"),
                 "local_path": "",
                 "active_branch": ACTIVE_BRANCHES.get(repo_id) or gr.get("default_branch", "main"),
                 "stars": gr.get("stargazers_count", 0),
@@ -71,6 +75,16 @@ def list_repos(sync: bool = False, user = Depends(get_current_user)):
             if repo_idx:
                 r["last_indexed"] = 1.0
                 r["index_path"] = f"mongodb://repo_indexes/{repo_id}"
+                config = db.get_repo_index_config(repo_id, ACTIVE_BRANCHES.get(repo_id) or gr.get("default_branch", "main"))
+                if config:
+                    r["index_config"] = config
+            else:
+                any_meta = db.get_any_repo_index_metadata(repo_id)
+                if any_meta:
+                    r["last_indexed"] = 1.0
+                    r["index_path"] = f"mongodb://repo_indexes/{repo_id}"
+                    if any_meta["config"]:
+                        r["index_config"] = any_meta["config"]
                 
             repos.append(r)
             
@@ -79,6 +93,25 @@ def list_repos(sync: bool = False, user = Depends(get_current_user)):
         # If sync=true, fetch and cache branches and tree for each repo
         if sync:
             for repo in repos:
+                # Check for auto-reindex
+                if repo.get("last_indexed") == 1.0:
+                    old_pushed = old_pushed_map.get(repo["id"])
+                    new_pushed = repo.get("pushed_at")
+                    if old_pushed and new_pushed and old_pushed != new_pushed:
+                        config = db.get_repo_index_config(repo["id"], repo["active_branch"]) or {}
+                        index_repo_task.delay(
+                            repo_id=repo["id"],
+                            owner=repo["owner"],
+                            repo_name=repo["name"],
+                            branch=repo["active_branch"],
+                            access_token=decrypted_token,
+                            concurrency=4,
+                            file_extensions=config.get("file_extensions"),
+                            ignored_paths=config.get("ignored_paths"),
+                            selected_files=config.get("selected_files")
+                        )
+                        print(f"[Main API] Triggered auto-reindex for {repo['id']} due to pushed_at change")
+
                 try:
                     branches = GitHubToolkitService.get_github_branches(repo["owner"], repo["name"], decrypted_token)
                     if branches:
@@ -107,6 +140,16 @@ def get_repo(repo_id: str, user = Depends(get_current_user)):
     if repo_idx:
         repo["last_indexed"] = 1.0
         repo["index_path"] = f"mongodb://repo_indexes/{repo_id}"
+        config = db.get_repo_index_config(repo_id, branch)
+        if config:
+            repo["index_config"] = config
+    else:
+        any_meta = db.get_any_repo_index_metadata(repo_id)
+        if any_meta:
+            repo["last_indexed"] = 1.0
+            repo["index_path"] = f"mongodb://repo_indexes/{repo_id}"
+            if any_meta["config"]:
+                repo["index_config"] = any_meta["config"]
             
     # Try to fetch live stars count dynamically
     user_info = db.get_user(user["username"])
@@ -185,12 +228,24 @@ def get_tree(repo_id: str, branch: Optional[str] = None, sync: bool = False, use
 @router.get("/api/repos/{repo_id}/file")
 def get_file(repo_id: str, path: str, branch: Optional[str] = None, user = Depends(get_current_user)):
     repo = get_virtual_repo(repo_id)
+    br = branch or ACTIVE_BRANCHES.get(repo_id) or repo.get("active_branch") or "main"
+
+    # 1. Check if index has this file's content
+    repo_idx = db.get_repo_index(repo_id, br)
+    if repo_idx and "nodes" in repo_idx:
+        for node_id, node in repo_idx["nodes"].items():
+            if node.get("type") == "file" and node.get("path") == path:
+                content = node.get("content", "")
+                if content:
+                    return {"content": content}
+                break  # Found but no content (e.g., skipped), fall back to GitHub
+
+    # 2. Fallback to GitHub
     user_info = db.get_user(user["username"])
     encrypted_token = user_info.get("github_token")
     decrypted_token = AuthService.decrypt_token(encrypted_token) if encrypted_token else None
     
     if decrypted_token:
-        br = branch or ACTIVE_BRANCHES.get(repo_id) or repo.get("active_branch") or "main"
         content = GitHubToolkitService.get_github_file_content(repo["owner"], repo["name"], path, br, decrypted_token)
         return {"content": content}
     return {"content": "Authentication token missing."}
@@ -209,30 +264,47 @@ def start_indexing(repo_id: str, req: IndexRequest, user = Depends(get_current_u
         repo_id=repo_id,
         owner=repo["owner"],
         repo_name=repo["name"],
-        branch=repo.get("active_branch") or "main",
+        branch=req.branch or ACTIVE_BRANCHES.get(repo_id) or repo.get("active_branch") or "main",
         access_token=decrypted_token,
         concurrency=req.concurrency or 4,
         file_extensions=req.file_extensions,
-        ignored_paths=req.ignored_paths
+        ignored_paths=req.ignored_paths,
+        selected_files=req.selected_files
     )
     return {"message": "Background Celery indexing task queued successfully.", "task_id": task.id}
 
+@router.delete("/api/repos/{repo_id}/index")
+def delete_index(repo_id: str, branch: Optional[str] = None, user = Depends(get_current_user)):
+    repo = get_virtual_repo(repo_id)
+    br = branch or ACTIVE_BRANCHES.get(repo_id) or repo.get("active_branch") or "main"
+    
+    # Delete logs and index from DB
+    db.clear_indexing_logs(repo_id, br)
+    success = db.delete_repo_index(repo_id, br)
+    
+    if not success:
+        raise HTTPException(status_code=404, detail="Index not found for this repository and branch.")
+        
+    return {"message": "Index deleted successfully."}
+
 @router.get("/api/repos/{repo_id}/indexing/logs")
-def get_indexing_logs(repo_id: str, user = Depends(get_current_user)):
-    logs = db.get_indexing_logs(repo_id)
+def get_indexing_logs(repo_id: str, branch: Optional[str] = None, user = Depends(get_current_user)):
+    repo = get_virtual_repo(repo_id)
+    br = branch or ACTIVE_BRANCHES.get(repo_id) or repo.get("active_branch") or "main"
+    logs = db.get_indexing_logs(repo_id, br)
     if not logs:
         return [{"log_line": "No active indexing logs found. Trigger indexing to begin.", "timestamp": 0.0}]
     return logs
 
 # --- Core Streaming TreeRAG Chat ---
 @router.get("/api/repos/{repo_id}/chat")
-async def chat_stream(repo_id: str, query: str, user = Depends(get_current_user)):
+async def chat_stream(repo_id: str, query: str, branch: Optional[str] = None, user = Depends(get_current_user)):
     """
     Streams step-by-step reasoning trace followed by the final synthesized answer.
     """
     def sse_generator():
         try:
-            generator = TreeRAGService.query_repository_stream(repo_id, query, user["username"])
+            generator = TreeRAGService.query_repository_stream(repo_id, query, branch=branch, username=user["username"])
             for event in generator:
                 yield f"data: {json.dumps(event)}\n\n"
         except Exception as e:

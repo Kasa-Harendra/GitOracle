@@ -21,6 +21,9 @@ interface AIRChatProps {
   setTraceLogs: React.Dispatch<React.SetStateAction<string[]>>;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   traceEndRef: React.RefObject<HTMLDivElement | null>;
+  branches?: string[];
+  activeBranch?: string;
+  handleBranchSwitch?: (branch: string) => void;
 }
 
 export const AIRChat: React.FC<AIRChatProps> = ({
@@ -37,7 +40,10 @@ export const AIRChat: React.FC<AIRChatProps> = ({
   traceLogs,
   setTraceLogs,
   messagesEndRef,
-  traceEndRef
+  traceEndRef,
+  branches = [],
+  activeBranch = "main",
+  handleBranchSwitch
 }) => {
   const [isTraceOpen, setIsTraceOpen] = React.useState<boolean>(true);
   const [traceWidth, setTraceWidth] = React.useState<number>(320);
@@ -104,6 +110,19 @@ export const AIRChat: React.FC<AIRChatProps> = ({
                 );
               })}
             </select>
+            
+            {selectedRepo && handleBranchSwitch && (
+              <select
+                value={activeBranch}
+                onChange={(e) => handleBranchSwitch(e.target.value)}
+                className="bg-[#0D1117] border border-[#30363D] hover:border-[#8b949e]/30 px-3 py-1.5 rounded-lg text-xs text-[#2EA043] font-bold focus:outline-none focus:border-[#2F81F7] font-mono cursor-pointer transition-all"
+              >
+                <option value={activeBranch}>{activeBranch}</option>
+                {branches.filter(b => b !== activeBranch).map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {traceActive && !isTraceOpen && (

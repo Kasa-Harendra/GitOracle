@@ -11,6 +11,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   // State variables
   const [user, setUser] = useState<any>(null);
   const [token, setToken] = useState<string>("mock-token");
+  const selectedRepoRef = useRef<any>(null);
   
   // GitHub profile actual repositories
   const [githubRepos, setGithubRepos] = useState<any[]>([]);
@@ -19,6 +20,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   // Cloned repositories saved in database
   const [repos, setRepos] = useState<any[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<any>(null);
+  
+  useEffect(() => {
+    selectedRepoRef.current = selectedRepo;
+  }, [selectedRepo]);
   const [branches, setBranches] = useState<string[]>([]);
   const [activeBranch, setActiveBranch] = useState<string>("main");
   const [fileTree, setFileTree] = useState<any[]>([]);
@@ -36,11 +41,53 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   // RAG Indexing Configurations
   const [cloneUrl, setCloneUrl] = useState<string>("https://github.com/langchain-ai/langchain.git");
   const [cloning, setCloning] = useState<boolean>(false);
-  const [indexing, setIndexing] = useState<boolean>(false);
+  const [indexingRepos, setIndexingRepos] = useState<Record<string, boolean>>({});
   const [indexStatus, setIndexStatus] = useState<string>("RAG Indexing Active!");
-  const [indexingLogs, setIndexingLogs] = useState<any[]>([]);
+  const [logsByRepo, setLogsByRepo] = useState<Record<string, any[]>>({});
+
+  const indexing = selectedRepo ? !!indexingRepos[selectedRepo.id] : false;
+  const indexingLogs = selectedRepo ? (logsByRepo[selectedRepo.id] || []) : [];
+
+  const setIndexing = (val: boolean) => {
+    if (selectedRepo) setIndexingRepos(prev => ({...prev, [selectedRepo.id]: val}));
+  };
+
+  const setIndexingLogs = (logs: any[]) => {
+    if (selectedRepo) setLogsByRepo(prev => ({...prev, [selectedRepo.id]: logs}));
+  };
   const [allowedExtensions, setAllowedExtensions] = useState<string>("py, js, ts, json, md, html, css");
-  const [customIgnoredDirs, setCustomIgnoredDirs] = useState<string>("tests, docs, build, dist");
+  const [indexMode, setIndexMode] = useState<"extensions" | "files">("extensions");
+  const [selectedFilesForIndex, setSelectedFilesForIndex] = useState<string[]>([]);
+
+  const collectFilePaths = (nodes: any[]): string[] => {
+    let paths: string[] = [];
+    for (const node of nodes) {
+      if (node.type === "blob" || node.type === "file") {
+        paths.push(node.path);
+      } else if (node.children) {
+        paths = paths.concat(collectFilePaths(node.children));
+      }
+    }
+    return paths;
+  };
+
+  const toggleFileSelection = (path: string) => {
+    setSelectedFilesForIndex(prev => prev.includes(path) ? prev.filter(p => p !== path) : [...prev, path]);
+  };
+
+  const toggleFolderSelection = (node: any) => {
+    const childPaths = collectFilePaths(node.children || []);
+    setSelectedFilesForIndex(prev => {
+      const someSelected = childPaths.length > 0 && childPaths.some(p => prev.includes(p));
+      if (someSelected) {
+        return prev.filter(p => !childPaths.includes(p));
+      } else {
+        const newSet = new Set([...prev, ...childPaths]);
+        return Array.from(newSet);
+      }
+    });
+  };
+
 
 
   
@@ -269,28 +316,31 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setShowCloneModal(false);
   };
 
-  // Index Repo Handler (with custom filters saved directly in MongoDB)
   const handleIndexRepo = async () => {
     if (!selectedRepo) return;
-    setIndexing(true);
+    const currentRepoId = selectedRepo.id;
+    setIndexingRepos(prev => ({...prev, [currentRepoId]: true}));
     setIndexStatus("Initializing background indexing pipeline...");
-    setIndexingLogs([{ log_line: "Establishing connection to TreeRAG server task...", timestamp: Date.now() / 1000 }]);
+    setLogsByRepo(prev => ({...prev, [currentRepoId]: [{ log_line: "Establishing connection to TreeRAG server task...", timestamp: Date.now() / 1000 }]}));
     
-    const file_extensions = allowedExtensions.split(",").map(e => e.trim()).filter(e => e.length > 0);
-    const ignored_paths = customIgnoredDirs.split(",").map(p => p.trim()).filter(p => p.length > 0);
+    let payload: any = { 
+      concurrency: 4, 
+      branch: activeBranch || selectedRepo.active_branch || "main" 
+    };
+    if (indexMode === "extensions") {
+      payload.file_extensions = allowedExtensions.split(",").map(e => e.trim()).filter(e => e.length > 0);
+    } else {
+      payload.selected_files = selectedFilesForIndex;
+    }
 
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/repos/${selectedRepo.id}/index`, {
+      const res = await fetch(`http://127.0.0.1:8000/api/repos/${currentRepoId}/index`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({
-          concurrency: 4,
-          file_extensions,
-          ignored_paths
-        })
+        body: JSON.stringify(payload)
       });
       if (res.ok) {
         setIndexStatus("RAG Indexing Active!");
@@ -298,12 +348,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
         let pollCount = 0;
         const intervalId = setInterval(async () => {
           try {
-            const logsRes = await fetch(`http://127.0.0.1:8000/api/repos/${selectedRepo.id}/indexing/logs`, {
+            const branchToUse = activeBranch || selectedRepo.active_branch || "main";
+            const logsRes = await fetch(`http://127.0.0.1:8000/api/repos/${currentRepoId}/indexing/logs?branch=${encodeURIComponent(branchToUse)}`, {
               headers: { "Authorization": `Bearer ${token}` }
             });
             if (logsRes.ok) {
               const logsData = await logsRes.json();
-              setIndexingLogs(logsData);
+              setLogsByRepo(prev => ({...prev, [currentRepoId]: logsData}));
               
               const hasFinished = logsData.some((log: any) => 
                 log.log_line.includes("indexed successfully!") || 
@@ -314,16 +365,19 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
               pollCount++;
               if (hasFinished || hasFailed || pollCount > 100) {
                 clearInterval(intervalId);
-                setIndexing(false);
+                setIndexingRepos(prev => ({...prev, [currentRepoId]: false}));
                 setIndexStatus("");
                 fetchGithubRepos(token, false);
-                // Re-select repo to fetch new tree
-                const refreshedRepo = await fetch(`http://127.0.0.1:8000/api/repos/${selectedRepo.id}`, {
+                
+                // Re-select repo to fetch new tree if it's currently active
+                const refreshedRepo = await fetch(`http://127.0.0.1:8000/api/repos/${currentRepoId}`, {
                   headers: { "Authorization": `Bearer ${token}` }
                 });
                 if (refreshedRepo.ok) {
                   const refreshedData = await refreshedRepo.json();
-                  selectRepository(refreshedData);
+                  if (selectedRepoRef.current?.id === currentRepoId) {
+                    selectRepository(refreshedData);
+                  }
                 }
               }
             }
@@ -332,14 +386,44 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
           }
         }, 1500);
       } else {
-        setIndexing(false);
+        setIndexingRepos(prev => ({...prev, [currentRepoId]: false}));
         setIndexStatus("");
         alert("Failed to start indexing.");
       }
     } catch (err) {
       alert("Indexing error: " + err);
-      setIndexing(false);
+      setIndexingRepos(prev => ({...prev, [currentRepoId]: false}));
       setIndexStatus("");
+    }
+  };
+
+  const handleDeleteIndex = async () => {
+    if (!selectedRepo) return;
+    const currentRepoId = selectedRepo.id;
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/repos/${currentRepoId}/index`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        setLogsByRepo(prev => ({...prev, [currentRepoId]: []}));
+        fetchGithubRepos(token, false);
+        const refreshedRepo = await fetch(`http://127.0.0.1:8000/api/repos/${currentRepoId}`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (refreshedRepo.ok) {
+          const refreshedData = await refreshedRepo.json();
+          if (selectedRepoRef.current?.id === currentRepoId) {
+            selectRepository(refreshedData);
+          }
+        }
+      } else {
+        alert("Failed to delete index.");
+      }
+    } catch (err) {
+      alert("Error deleting index: " + err);
     }
   };
 
@@ -600,7 +684,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setMessages(prev => [...prev, newBotMsg]);
 
     try {
-      const res = await fetch(`http://127.0.0.1:8000/api/repos/${selectedRepo.id}/chat?query=${encodeURIComponent(userQuery)}`, {
+      const branchToUse = activeBranch || selectedRepo.active_branch || "main";
+      const res = await fetch(`http://127.0.0.1:8000/api/repos/${selectedRepo.id}/chat?query=${encodeURIComponent(userQuery)}&branch=${encodeURIComponent(branchToUse)}`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       
@@ -660,7 +745,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     repos, setRepos, selectedRepo, setSelectedRepo, branches, setBranches, activeBranch, setActiveBranch,
     fileTree, setFileTree, expandedFolders, setExpandedFolders, toggleFolder, cloneUrl, setCloneUrl,
     cloning, setCloning, indexing, setIndexing, indexStatus, setIndexStatus, indexingLogs, setIndexingLogs,
-    allowedExtensions, setAllowedExtensions, customIgnoredDirs, setCustomIgnoredDirs,
+    allowedExtensions, setAllowedExtensions,
+    indexMode, setIndexMode, selectedFilesForIndex, toggleFileSelection, toggleFolderSelection,
     isRepoPanelOpen, setIsRepoPanelOpen, isTreePanelOpen, setIsTreePanelOpen, isFileChatOpen, setIsFileChatOpen,
     isLeftNavOpen, setIsLeftNavOpen, leftNavWidth, setLeftNavWidth, messages, setMessages, chatInput, setChatInput,
     chatLoading, setChatLoading, traceLogs, setTraceLogs, traceActive, setTraceActive, selectedFilePath, setSelectedFilePath,
@@ -670,7 +756,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setPullRequests, selectedPR, setSelectedPR, prDetails, setPRDetails, prSummary, setPRSummary, prSummaryLoading, setPrSummaryLoading,
     showCloneModal, setShowCloneModal,
     messagesEndRef, traceEndRef, fileChatEndRef, startResizingLeftNav, scrollFileChatToBottom, scrollToBottom, scrollTraceToBottom,
-    handleLogout, fetchRepos, fetchGithubRepos, selectRepository, handleCloneRepo, handleIndexRepo, handleBranchSwitch,
+    handleLogout, fetchRepos, fetchGithubRepos, selectRepository, handleCloneRepo, handleIndexRepo, handleDeleteIndex, handleBranchSwitch,
     handleFileSelect, handleExplainFile, handleSendFileChatMessage, handleGenerateReadme, handlePRSelect, handlePRSummary,
     handleSendMessage
   };

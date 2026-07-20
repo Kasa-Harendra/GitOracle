@@ -402,7 +402,7 @@ class GithubTreeBuilder:
                 "content": content  # Store the actual file contents inside the node
             }
 
-    async def build(self, file_extensions: List[str] = None, ignored_paths: List[str] = None) -> Tuple[str, Dict[str, Any]]:
+    async def build(self, file_extensions: List[str] = None, ignored_paths: List[str] = None, selected_files: List[str] = None) -> Tuple[str, Dict[str, Any]]:
         """
         Builds the tree index using GithubFileLoader and returns (root_id, full_index_data).
         """
@@ -432,20 +432,25 @@ class GithubTreeBuilder:
             if file_info["type"] != "blob":
                 continue  # Skip directories at this phase, we build them bottom-up
                 
-            # Check if ignored
-            ignored = False
-            parts = rel_path.split("/")
-            for part in parts:
-                if part in IGNORED_DIRS or part.startswith(".") or part in custom_ignores:
-                    ignored = True
-                    break
-            if ignored:
-                continue
+            # If explicitly selecting files, skip anything not in selected_files
+            if selected_files is not None:
+                if rel_path not in selected_files:
+                    continue
+            else:
+                # Check if ignored based on defaults or ignored_paths
+                ignored = False
+                parts = rel_path.split("/")
+                for part in parts:
+                    if part in IGNORED_DIRS or part.startswith(".") or part in custom_ignores:
+                        ignored = True
+                        break
+                if ignored:
+                    continue
 
             _, ext = os.path.splitext(rel_path.lower())
             
-            # Check if binary/media file
-            if ext in BINARY_EXTENSIONS or (formatted_exts and ext not in formatted_exts) or (not formatted_exts and ext not in TEXT_EXTENSIONS and not rel_path.endswith((".dockerfile", "dockerfile"))):
+            # Check if binary/media file or filtered by extensions (only if not explicitly selected)
+            if ext in BINARY_EXTENSIONS or (selected_files is None and formatted_exts and ext not in formatted_exts) or (selected_files is None and not formatted_exts and ext not in TEXT_EXTENSIONS and not rel_path.endswith((".dockerfile", "dockerfile"))):
                 file_nodes_draft[rel_path] = {
                     "title": os.path.basename(rel_path),
                     "type": "file",
