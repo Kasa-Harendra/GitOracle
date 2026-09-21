@@ -13,7 +13,7 @@ class GitHubToolkitService:
                 g = Github(github_token)
                 r = g.get_repo(f"{owner}/{repo_name}")
                 open_prs = r.get_pulls(state='open')
-                for pr in open_prs:
+                for pr in open_prs[:50]:
                     prs.append({
                         "number": pr.number,
                         "title": pr.title,
